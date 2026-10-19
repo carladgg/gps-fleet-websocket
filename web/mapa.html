@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>GPS IoT - Flotilla</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<style>
+    body { font-family: sans-serif; margin: 10px; }
+    #mapa { height: 600px; }
+    #estado { font-weight: bold; }
+    #lista { font-size: 14px; margin: 6px 0 10px; }
+    .etiqueta { font-weight: bold; }
+</style>
+</head>
+
+<body>
+
+<h1>🚗 GPS IoT - WebSocket</h1>
+<p>Conexión: <span id="estado">conectando...</span></p>
+<div id="lista">Esperando GPS...</div>
+<div id="mapa"></div>
+
+<script>
+// ── Configuración ──────────────────────────────────────────────
+const URL_WS = "ws://127.0.0.1:8765";        // servidor local
+// const URL_WS = "ws://IP_DE_TU_EC2:8765";  // si después subes servidor.py a AWS
+
+const COLORES = ["red", "blue", "green", "purple", "orange", "black", "brown", "teal"];
+
+// ── Mapa ───────────────────────────────────────────────────────
+const mapa = L.map("mapa").setView([29.0729, -110.9559], 15);
+
+L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", {
+    maxZoom: 17,
+    attribution: 'Map data: © OpenStreetMap contributors, SRTM | Map style: © OpenTopoMap'
+}).addTo(mapa);
+
+// Un registro por cliente: { marcador, ruta, color, lat, lon }
+const clientes = {};
+
+function obtenerCliente(id, lat, lon) {
+    if (!clientes[id]) {
+        const color = COLORES[Object.keys(clientes).length % COLORES.length];
+
+        // Marcador con etiqueta permanente del nombre del cliente
+        const marcador = L.marker([lat, lon]).addTo(mapa)
+            .bindTooltip(id, { permanent: true, direction: "top", className: "etiqueta" });
+
+        // Línea que va dibujando la ruta
+        const ruta = L.polyline([], { color: color, weight: 4 }).addTo(mapa);
+
+        clientes[id] = { marcador, ruta, color };
+        console.log("Nuevo cliente:", id);
+    }
+    return clientes[id];
+}
+
+function actualizarLista() {
+    document.getElementById("lista").innerHTML = Object.entries(clientes)
+        .map(([id, c]) =>
+            `<span style="color:${c.color}">■</span> ${id}: ` +
+            `${c.lat.toFixed(6)}, ${c.lon.toFixed(6)}`)
+        .join("<br>");
+}
+
+// ── WebSocket ──────────────────────────────────────────────────
+const socket = new WebSocket(URL_WS);
+
+socket.onopen = () => {
+    document.getElementById("estado").textContent = "conectado ✅";
+};
+
+socket.onclose = () => {
+    document.getElementById("estado").textContent = "desconectado ❌ (¿está corriendo servidor.py?)";
+};
+
+socket.onmessage = (event) => {
+    const datos = JSON.parse(event.data);
+    console.log(datos);
+
+    const { id, lat, lon } = datos;
+    if (id === undefined || lat === undefined || lon === undefined) return;  // ignora mensajes incompletos
+
+    const c = obtenerCliente(id, lat, lon);
+    c.marcador.setLatLng([lat, lon]);
+    c.ruta.addLatLng([lat, lon]);
+    c.lat = lat;
+    c.lon = lon;
+
+    actualizarLista();
+};
+</script>
+
+</body>
+</html>

@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="utf-8">
+<title>GPS IoT - Un carro</title>
+
+<link
+rel="stylesheet"
+href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+/>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<style>
+
+#mapa {
+    height: 600px;
+}
+
+</style>
+
+</head>
+
+
+<body>
+
+<h1>🚗 GPS IoT - WebSocket</h1>
+
+<p id="datos">Esperando GPS...</p>
+
+<div id="mapa"></div>
+
+
+<script>
+
+
+const mapa = L.map("mapa").setView(
+    [29.0729, -110.9559],
+    15
+);
+
+L.tileLayer(
+    "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
+    {
+        maxZoom: 17,
+        attribution:
+            'Map data: © OpenStreetMap contributors, SRTM | Map style: © OpenTopoMap'
+    }
+).addTo(mapa);
+
+let carro = L.marker(
+    [29.0729, -110.9559]
+).addTo(mapa);
+
+
+
+
+const socket = new WebSocket(
+    "ws://localhost:8765"   // servidor local (servidor.py)
+);
+
+
+socket.onopen = function() {
+
+    console.log("WebSocket conectado");
+
+};
+
+
+socket.onmessage = function(event) {
+
+    const datos = JSON.parse(event.data);
+
+    console.log(datos);
+
+    const lat = datos.lat;
+    const lon = datos.lon;
+
+    carro.setLatLng(
+        [lat, lon]
+    );
+
+    mapa.panTo(
+        [lat, lon]
+    );
+
+    document.getElementById(
+        "datos"
+    ).innerHTML =
+        "Vehículo: " + datos.id +
+        " | Lat: " + lat.toFixed(6) +
+        " | Lon: " + lon.toFixed(6);
+
+};
+
+</script>
+
+</body>
+
+</html>
